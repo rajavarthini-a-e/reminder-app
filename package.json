@@ -1,0 +1,32 @@
+{
+  "name": "mentor-ai-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MentorAI - Production-Ready AI Accountability Mentor MVP",
+  "scripts": {
+    "dev": "concurrently -k -p \"[{name}]\" -n \"BACKEND,FRONTEND\" -c \"cyan.bold,magenta.bold\" \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "build": "npm run build --prefix backend && npm run build --prefix frontend",
+    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend",
+    "prisma:generate": "npm run prisma:generate --prefix backend",
+    "prisma:push": "npm run prisma:push --prefix backend",
+    "prisma:seed": "npm run prisma:seed --prefix backend",
+    "setup": "npm install && npm install --prefix backend && npm install --prefix frontend && npm run prisma:push --prefix backend && npm run prisma:seed --prefix backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prisma": "^5.22.0"
+  },
+  "keywords": [
+    "mentor",
+    "ai",
+    "accountability",
+    "scheduler",
+    "react",
+    "express"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^5.22.0"
+  }
+}
