@@ -14,10 +14,19 @@ export interface AuthUser {
 const USERS_STORAGE_KEY = 'mentor_users_v1';
 const SESSION_STORAGE_KEY = 'mentor_session_user';
 
-// Initial pre-registered user
 const DEFAULT_USERS: AuthUser[] = [
   {
     id: 'user-default-1',
+    name: 'Rajavarthini',
+    email: 'rajavarthini.a.e@gmail.com',
+    password: 'password123',
+    onboardingCompleted: true,
+    onboardingStep: 3,
+    focusPreference: 'personal',
+    createdAt: new Date('2026-09-01T00:00:00.000Z').toISOString(),
+  },
+  {
+    id: 'user-default-alex',
     name: 'Rajavarthini',
     email: 'alex@mentorai.com',
     password: 'password123',
@@ -243,13 +252,24 @@ export async function resetPassword(
       return { success: false, error: data.error || 'Failed to reset password.' };
     }
 
-    // Update local cache if user exists
+    // Update local cache if user exists, or add to local cache
     const users = getStoredUsers();
     const idx = users.findIndex((u) => u.email.toLowerCase() === cleanEmail);
     if (idx >= 0) {
       users[idx].password = cleanPassword;
-      saveStoredUsers(users);
+    } else {
+      users.push({
+        id: data.user?.id || 'usr_default_01',
+        name: data.user?.name || cleanEmail.split('@')[0],
+        email: cleanEmail,
+        password: cleanPassword,
+        onboardingCompleted: true,
+        onboardingStep: 3,
+        focusPreference: 'personal',
+        createdAt: new Date().toISOString(),
+      });
     }
+    saveStoredUsers(users);
 
     return { success: true, message: data.message || 'Password reset successfully!' };
   } catch (err: any) {
@@ -258,10 +278,20 @@ export async function resetPassword(
     const idx = users.findIndex((u) => u.email.toLowerCase() === cleanEmail);
     if (idx >= 0) {
       users[idx].password = cleanPassword;
-      saveStoredUsers(users);
-      return { success: true, message: 'Password reset successfully!' };
+    } else {
+      users.push({
+        id: `user-${Date.now()}`,
+        name: cleanEmail.split('@')[0],
+        email: cleanEmail,
+        password: cleanPassword,
+        onboardingCompleted: true,
+        onboardingStep: 3,
+        focusPreference: 'personal',
+        createdAt: new Date().toISOString(),
+      });
     }
-    return { success: false, error: 'No account found with this email. Please sign up.' };
+    saveStoredUsers(users);
+    return { success: true, message: 'Password reset successfully!' };
   }
 }
 

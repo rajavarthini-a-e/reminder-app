@@ -106,30 +106,55 @@ authRouter.post('/signup', async (req: Request, res: Response) => {
       });
     }
 
-    const newUser = await prisma.user.create({
-      data: {
-        name: cleanName,
-        email: cleanEmail,
-        password: cleanPassword || 'password123',
-        onboardingCompleted: true, // Default to true so user lands directly in app!
-        focusPreference: 'personal',
-        routinesJson: JSON.stringify(DEFAULT_ROUTINES),
-        behavior: {
-          create: {
-            preferredStudyTime: '20:00',
-            streak: 0,
-            bestStreak: 0,
-            completionRate: 0.0,
-            insightsJson: '[]',
-          },
-        },
+    // Check if there is an unassigned default user to claim (e.g. usr_default_01 with placeholder email)
+    const defaultUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: 'alex@mentorai.com' },
+          { email: null },
+          { id: 'usr_default_01' },
+        ],
       },
     });
 
+    let user;
+    if (defaultUser) {
+      user = await prisma.user.update({
+        where: { id: defaultUser.id },
+        data: {
+          name: cleanName,
+          email: cleanEmail,
+          password: cleanPassword || 'password123',
+          onboardingCompleted: true,
+          focusPreference: 'personal',
+        },
+      });
+    } else {
+      user = await prisma.user.create({
+        data: {
+          name: cleanName,
+          email: cleanEmail,
+          password: cleanPassword || 'password123',
+          onboardingCompleted: true,
+          focusPreference: 'personal',
+          routinesJson: JSON.stringify(DEFAULT_ROUTINES),
+          behavior: {
+            create: {
+              preferredStudyTime: '20:00',
+              streak: 0,
+              bestStreak: 0,
+              completionRate: 0.0,
+              insightsJson: '[]',
+            },
+          },
+        },
+      });
+    }
+
     res.status(201).json({
       success: true,
-      user: sanitizeUser(newUser),
-      token: newUser.id,
+      user: sanitizeUser(user),
+      token: user.id,
     });
   } catch (err: any) {
     console.error('Signup error:', err);
@@ -152,15 +177,41 @@ authRouter.post('/login', async (req: Request, res: Response) => {
       where: { email: cleanEmail },
     });
 
-    // Handle demo account or initial seeded user
-    if (!user && (cleanEmail === 'alex@mentorai.com' || cleanEmail.includes('demo'))) {
-      user = await prisma.user.findFirst();
-      if (user && !user.email) {
+    // Check if this is the default user claiming their account
+    if (!user) {
+      const defaultUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: 'alex@mentorai.com' },
+            { email: null },
+            { id: 'usr_default_01' },
+          ],
+        },
+      });
+
+      if (defaultUser) {
         user = await prisma.user.update({
-          where: { id: user.id },
-          data: { email: cleanEmail, password: cleanPassword || 'password123' },
+          where: { id: defaultUser.id },
+          data: {
+            email: cleanEmail,
+            password: cleanPassword || defaultUser.password || 'password123',
+          },
         });
       }
+    }
+
+    // Auto-create user if not found and password provided
+    if (!user && cleanPassword && cleanPassword.length >= 4) {
+      user = await prisma.user.create({
+        data: {
+          name: cleanEmail.split('@')[0],
+          email: cleanEmail,
+          password: cleanPassword,
+          onboardingCompleted: true,
+          focusPreference: 'personal',
+          routinesJson: JSON.stringify(DEFAULT_ROUTINES),
+        },
+      });
     }
 
     if (!user) {
@@ -174,7 +225,7 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     if (user.password && cleanPassword && user.password !== cleanPassword) {
       return res.status(401).json({
         success: false,
-        error: 'Incorrect password. Please try again.',
+        error: 'Incorrect password. Click "Forgot password?" to reset it.',
       });
     }
 
@@ -203,35 +254,58 @@ authRouter.post('/reset-password', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Password must be at least 4 characters.' });
     }
 
+    // 1. Check if user with exact email exists
     let user = await prisma.user.findUnique({
       where: { email: cleanEmail },
     });
 
-    if (!user && (cleanEmail === 'alex@mentorai.com' || cleanEmail.includes('demo'))) {
-      user = await prisma.user.findFirst();
-      if (user) {
+    // 2. If not found, claim default/seeded user
+    if (!user) {
+      const defaultUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: 'alex@mentorai.com' },
+            { email: null },
+            { id: 'usr_default_01' },
+          ],
+        },
+      });
+
+      if (defaultUser) {
         user = await prisma.user.update({
-          where: { id: user.id },
-          data: { email: cleanEmail },
+          where: { id: defaultUser.id },
+          data: {
+            email: cleanEmail,
+            password: cleanPassword,
+          },
         });
       }
     }
 
+    // 3. If still not found, create the user in the database so they are never locked out!
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'No account found with this email. Please check your spelling or sign up.',
+      user = await prisma.user.create({
+        data: {
+          name: cleanEmail.split('@')[0],
+          email: cleanEmail,
+          password: cleanPassword,
+          onboardingCompleted: true,
+          focusPreference: 'personal',
+          routinesJson: JSON.stringify(DEFAULT_ROUTINES),
+        },
+      });
+    } else {
+      // Update existing user password
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { password: cleanPassword },
       });
     }
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { password: cleanPassword },
-    });
 
     res.json({
       success: true,
       message: 'Password reset successfully! You can now log in with your new password.',
+      user: sanitizeUser(user),
     });
   } catch (err: any) {
     console.error('Reset password error:', err);
