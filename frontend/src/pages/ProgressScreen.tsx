@@ -238,6 +238,37 @@ export const ProgressScreen: React.FC = () => {
         </button>
       </div>
 
+      {/* Quick Active Roadmap Card (visible in Personal mode when an active roadmap exists) */}
+      {domainMode === 'personal' && dashboardData?.goal && (
+        <div
+          onClick={() => navigate('/library')}
+          className="bg-white dark:bg-surface-dark border border-border dark:border-surface-darkBorder rounded-2xl p-3.5 shadow-2xs flex items-center justify-between gap-3 cursor-pointer hover:border-success transition-all group"
+          title="Open your full study roadmap"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-success-soft text-success flex items-center justify-center text-base flex-shrink-0 group-hover:scale-105 transition-transform">
+              🗺️
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-black uppercase tracking-wider text-secondary-text">
+                Active Study Roadmap
+              </div>
+              <div className="text-xs font-bold text-primary-text dark:text-white truncate">
+                {dashboardData.goal.title}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-xs font-black text-success">
+              {Math.round(dashboardData.goal.progress || 0)}%
+            </span>
+            <span className="text-xs text-secondary-text font-bold group-hover:translate-x-0.5 transition-transform">
+              View Roadmap →
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* CAREER MODE (Daily & Weekly & Monthly Progress + Execution)                */}
       {/* ========================================================================= */}

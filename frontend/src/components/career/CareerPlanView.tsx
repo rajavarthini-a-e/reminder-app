@@ -159,7 +159,7 @@ export const CareerPlanView: React.FC<CareerPlanViewProps> = ({
                   : 'text-secondary-text hover:text-primary-text'
               )}
             >
-              {cadence === 'monthly' ? 'Total Plan' : cadence}
+              {cadence === 'monthly' ? 'Full Roadmap' : cadence}
             </button>
           );
         })}
