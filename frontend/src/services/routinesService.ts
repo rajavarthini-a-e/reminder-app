@@ -1,3 +1,5 @@
+import { saveServerRoutines, fetchServerRoutines } from './api.js';
+
 export type RoutineDay = 'M' | 'T' | 'W' | 'Th' | 'F' | 'Sa' | 'Su';
 
 export type ReminderFrequencyType = 'interval' | 'once_daily';
@@ -176,9 +178,25 @@ export function saveStoredRoutines(routines: Routine[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(routines));
     window.dispatchEvent(new CustomEvent('mentor_routines_updated', { detail: routines }));
+    // Asynchronously sync to SQLite backend database
+    saveServerRoutines(routines).catch((err) => console.warn('Failed to sync routines to backend:', err));
   } catch (err) {
     console.error('Failed to save routines to localStorage:', err);
   }
+}
+
+export async function syncRoutinesWithBackend(): Promise<Routine[]> {
+  try {
+    const serverRoutines = await fetchServerRoutines();
+    if (serverRoutines && serverRoutines.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(serverRoutines));
+      window.dispatchEvent(new CustomEvent('mentor_routines_updated', { detail: serverRoutines }));
+      return serverRoutines;
+    }
+  } catch (e) {
+    console.warn('Routine backend sync skipped:', e);
+  }
+  return getStoredRoutines();
 }
 
 export function getRoutineTargetCount(routine: Routine): number {

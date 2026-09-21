@@ -41,7 +41,8 @@ export const OnboardingPage: React.FC = () => {
   const handleSelectFocus = (focus: 'career' | 'personal' | 'both' | 'later') => {
     setSelectedFocus(focus);
     setFocusPreference(focus);
-    setStep(3);
+    completeOnboarding();
+    navigate('/', { replace: true });
   };
 
   const handleFileSelect = async (file: File) => {
@@ -135,12 +136,21 @@ export const OnboardingPage: React.FC = () => {
               </p>
             </div>
 
-            <button
-              onClick={handleStart}
-              className="w-full min-h-[48px] py-3.5 px-6 rounded-2xl bg-success text-white hover:bg-success-hover font-black text-sm shadow-md transition-all cursor-pointer"
-            >
-              Let's get started
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={handleStart}
+                className="w-full min-h-[48px] py-3.5 px-6 rounded-2xl bg-success text-white hover:bg-success-hover font-black text-sm shadow-md transition-all cursor-pointer"
+              >
+                Let's get started
+              </button>
+              <button
+                type="button"
+                onClick={handleFinishOnboarding}
+                className="w-full py-2.5 text-xs text-secondary-text hover:text-primary-text font-bold transition-all cursor-pointer"
+              >
+                Skip straight to dashboard →
+              </button>
+            </div>
           </div>
         )}
 

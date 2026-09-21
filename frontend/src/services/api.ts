@@ -11,16 +11,66 @@ const RAW_API_URL = (import.meta.env.VITE_API_URL || '').trim();
 const API_URL = RAW_API_URL.replace(/\/+$/, '');
 export const API_BASE = API_URL ? `${API_URL}/api` : '/api';
 
+export function getAuthHeaders(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem('mentor_session_user');
+    if (raw) {
+      const user = JSON.parse(raw);
+      if (user && user.id) {
+        return { Authorization: `Bearer ${user.id}` };
+      }
+    }
+  } catch (e) {
+    // Ignore error
+  }
+  return {};
+}
+
 export async function fetchDashboard(): Promise<DashboardData> {
-  const res = await fetch(`${API_BASE}/dashboard`);
+  const res = await fetch(`${API_BASE}/dashboard`, {
+    headers: { ...getAuthHeaders() },
+  });
   if (!res.ok) throw new Error('Failed to load dashboard data');
   return res.json();
 }
 
 export async function fetchTodayTasks(): Promise<Task[]> {
-  const res = await fetch(`${API_BASE}/tasks/today`);
+  const res = await fetch(`${API_BASE}/tasks/today`, {
+    headers: { ...getAuthHeaders() },
+  });
   if (!res.ok) throw new Error('Failed to fetch tasks');
   return res.json();
+}
+
+export async function fetchServerRoutines(): Promise<any[]> {
+  try {
+    const res = await fetch(`${API_BASE}/routines`, {
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.routines || [];
+  } catch (err) {
+    console.warn('Failed to fetch routines from server:', err);
+    return [];
+  }
+}
+
+export async function saveServerRoutines(routines: any[]): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/routines`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ routines }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to save routines to server:', err);
+    return false;
+  }
 }
 
 export async function startTask(taskId: string): Promise<any> {

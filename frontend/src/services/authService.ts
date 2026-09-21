@@ -1,3 +1,5 @@
+import { API_BASE, getAuthHeaders } from './api.js';
+
 export interface AuthUser {
   id: string;
   name: string;
@@ -12,7 +14,7 @@ export interface AuthUser {
 const USERS_STORAGE_KEY = 'mentor_users_v1';
 const SESSION_STORAGE_KEY = 'mentor_session_user';
 
-// Initial pre-registered user (Alex Rivera) so returning user flow works out of the box
+// Initial pre-registered user
 const DEFAULT_USERS: AuthUser[] = [
   {
     id: 'user-default-1',
@@ -21,7 +23,7 @@ const DEFAULT_USERS: AuthUser[] = [
     password: 'password123',
     onboardingCompleted: true,
     onboardingStep: 3,
-    focusPreference: 'career',
+    focusPreference: 'personal',
     createdAt: new Date('2026-09-01T00:00:00.000Z').toISOString(),
   },
 ];
@@ -63,25 +65,25 @@ export function setCurrentUser(user: AuthUser | null): void {
   try {
     if (user) {
       localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(user));
-      // Sync legacy localStorage flag for backwards compatibility
-      localStorage.setItem('mentor_onboarding_completed', user.onboardingCompleted ? 'true' : 'false');
-      if (user.focusPreference) {
-        localStorage.setItem('mentor_focus_preference', user.focusPreference);
-        localStorage.setItem('mentor_domain_mode', user.focusPreference === 'personal' ? 'personal' : 'career');
-      }
+      localStorage.setItem('mentor_onboarding_completed', 'true');
+      localStorage.setItem('mentor_focus_preference', user.focusPreference || 'personal');
+      localStorage.setItem('mentor_domain_mode', user.focusPreference === 'career' ? 'career' : 'personal');
     } else {
       localStorage.removeItem(SESSION_STORAGE_KEY);
       localStorage.removeItem('mentor_onboarding_completed');
       localStorage.removeItem('mentor_focus_preference');
     }
-    // Dispatch custom event for cross-component reactive updates
     window.dispatchEvent(new Event('mentor_auth_changed'));
   } catch (err) {
     console.error('Failed to set current user session:', err);
   }
 }
 
-export function signup(name: string, email: string, password?: string): { success: boolean; error?: string; user?: AuthUser } {
+export async function signup(
+  name: string,
+  email: string,
+  password?: string
+): Promise<{ success: boolean; error?: string; user?: AuthUser }> {
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
 
@@ -92,54 +94,127 @@ export function signup(name: string, email: string, password?: string): { succes
     return { success: false, error: 'Please enter a valid email address.' };
   }
 
-  const users = getStoredUsers();
-  const existingUser = users.find((u) => u.email.toLowerCase() === cleanEmail);
-  if (existingUser) {
-    return {
-      success: false,
-      error: 'An account with this email already exists. Please log in instead.',
+  try {
+    const res = await fetch(`${API_BASE}/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: cleanName,
+        email: cleanEmail,
+        password: password || 'password123',
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      return { success: false, error: data.error || 'Failed to create account.' };
+    }
+
+    const newUser: AuthUser = {
+      ...data.user,
+      onboardingCompleted: true,
+      onboardingStep: 3,
+      focusPreference: data.user.focusPreference || 'personal',
     };
+
+    // Update local cache
+    const users = getStoredUsers();
+    users.push(newUser);
+    saveStoredUsers(users);
+
+    setCurrentUser(newUser);
+    return { success: true, user: newUser };
+  } catch (err: any) {
+    console.warn('Backend signup fallback:', err);
+    // Offline / fallback storage
+    const newUser: AuthUser = {
+      id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      name: cleanName,
+      email: cleanEmail,
+      password: password || 'password123',
+      onboardingCompleted: true,
+      onboardingStep: 3,
+      focusPreference: 'personal',
+      createdAt: new Date().toISOString(),
+    };
+
+    const users = getStoredUsers();
+    users.push(newUser);
+    saveStoredUsers(users);
+    setCurrentUser(newUser);
+
+    return { success: true, user: newUser };
   }
-
-  const newUser: AuthUser = {
-    id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-    name: cleanName,
-    email: cleanEmail,
-    password: password || 'password123',
-    onboardingCompleted: false,
-    onboardingStep: 1,
-    focusPreference: undefined,
-    createdAt: new Date().toISOString(),
-  };
-
-  users.push(newUser);
-  saveStoredUsers(users);
-  setCurrentUser(newUser);
-
-  return { success: true, user: newUser };
 }
 
-export function login(email: string, password?: string): { success: boolean; error?: string; user?: AuthUser } {
+export async function login(
+  email: string,
+  password?: string
+): Promise<{ success: boolean; error?: string; user?: AuthUser }> {
   const cleanEmail = email.trim().toLowerCase();
-  const users = getStoredUsers();
 
-  const user = users.find((u) => u.email.toLowerCase() === cleanEmail);
-  if (!user) {
-    return {
-      success: false,
-      error: 'No account found with this email. Please check your email or sign up.',
-    };
+  if (!cleanEmail) {
+    return { success: false, error: 'Please enter your email.' };
   }
 
-  if (password && user.password && user.password !== password) {
-    return {
-      success: false,
-      error: 'Incorrect password. Please try again.',
-    };
-  }
+  try {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: cleanEmail,
+        password: password || '',
+      }),
+    });
 
-  setCurrentUser(user);
-  return { success: true, user };
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      return {
+        success: false,
+        error: data.error || 'No account found with this email. Please check your email or sign up.',
+      };
+    }
+
+    const user: AuthUser = {
+      ...data.user,
+      onboardingCompleted: true,
+      onboardingStep: 3,
+      focusPreference: data.user.focusPreference || 'personal',
+    };
+
+    // Update local cache
+    const users = getStoredUsers();
+    const idx = users.findIndex((u) => u.email.toLowerCase() === cleanEmail);
+    if (idx >= 0) {
+      users[idx] = user;
+    } else {
+      users.push(user);
+    }
+    saveStoredUsers(users);
+
+    setCurrentUser(user);
+    return { success: true, user };
+  } catch (err: any) {
+    console.warn('Backend login fallback:', err);
+    const users = getStoredUsers();
+    const user = users.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (!user) {
+      return {
+        success: false,
+        error: 'No account found with this email. Please check your email or sign up.',
+      };
+    }
+
+    if (password && user.password && user.password !== password) {
+      return {
+        success: false,
+        error: 'Incorrect password. Please try again.',
+      };
+    }
+
+    setCurrentUser(user);
+    return { success: true, user };
+  }
 }
 
 export function updateCurrentUser(updates: Partial<AuthUser>): AuthUser | null {
@@ -155,6 +230,17 @@ export function updateCurrentUser(updates: Partial<AuthUser>): AuthUser | null {
   }
 
   setCurrentUser(updatedUser);
+
+  // Sync to backend asynchronously
+  fetch(`${API_BASE}/auth/profile`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(updates),
+  }).catch((err) => console.warn('Failed to sync profile updates to backend:', err));
+
   return updatedUser;
 }
 

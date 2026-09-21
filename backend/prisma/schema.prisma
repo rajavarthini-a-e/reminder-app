@@ -8,15 +8,20 @@ generator client {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  name      String    @default("Learner")
-  timezone  String    @default("UTC")
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id                  String    @id @default(uuid())
+  name                String    @default("Learner")
+  email               String?   @unique
+  password            String?
+  timezone            String    @default("UTC")
+  onboardingCompleted Boolean   @default(true)
+  focusPreference     String?   @default("personal")
+  routinesJson        String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  goals     Goal[]
-  behavior  Behavior?
-  messages  ChatMessage[]
+  goals               Goal[]
+  behavior            Behavior?
+  messages            ChatMessage[]
 }
 
 model Goal {

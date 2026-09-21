@@ -41,8 +41,13 @@ export const ProgressScreen: React.FC = () => {
   } = useAppStore();
 
   const [domainMode, setDomainMode] = useState<'career' | 'personal'>(() => {
-    return currentUser?.focusPreference === 'personal' ? 'personal' : 'career';
+    return (localStorage.getItem('mentor_domain_mode') as 'career' | 'personal') || 'personal';
   });
+
+  const handleSwitchDomain = (mode: 'career' | 'personal') => {
+    setDomainMode(mode);
+    localStorage.setItem('mentor_domain_mode', mode);
+  };
   const [inlineAnswer, setInlineAnswer] = useState('');
   const [inlineSubmitted, setInlineSubmitted] = useState(false);
   const [inlineFeedback, setInlineFeedback] = useState<string | null>(null);
@@ -208,7 +213,7 @@ export const ProgressScreen: React.FC = () => {
       {/* 2. Mode Switch: Career vs Personal */}
       <div className="flex bg-surface-secondary dark:bg-surface-darkBorder rounded-2xl p-1 select-none border border-border/60">
         <button
-          onClick={() => setDomainMode('career')}
+          onClick={() => handleSwitchDomain('career')}
           className={clsx(
             'flex-1 py-2.5 px-3 rounded-xl text-xs font-black transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer',
             domainMode === 'career'
@@ -220,7 +225,7 @@ export const ProgressScreen: React.FC = () => {
           <span>Career</span>
         </button>
         <button
-          onClick={() => setDomainMode('personal')}
+          onClick={() => handleSwitchDomain('personal')}
           className={clsx(
             'flex-1 py-2.5 px-3 rounded-xl text-xs font-black transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer',
             domainMode === 'personal'
@@ -252,7 +257,7 @@ export const ProgressScreen: React.FC = () => {
             setActiveMilestoneForTest(milestone);
             setIsMilestoneTestOpen(true);
           }}
-          onNavigateUpload={() => navigate('/upload')}
+          onNavigateUpload={() => navigate('/library')}
           onNavigateCalendar={() => navigate('/calendar')}
           criticalDeadlineSlot={
             dashboardData?.criticalDeadlines && dashboardData.criticalDeadlines.length > 0 ? (

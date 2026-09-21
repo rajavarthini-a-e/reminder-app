@@ -11,24 +11,25 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
 
-    const result = login(email, password);
-    setIsSubmitting(false);
+    try {
+      const result = await login(email, password);
+      setIsSubmitting(false);
 
-    if (!result.success) {
-      setError(result.error || 'Failed to log in.');
-      return;
-    }
+      if (!result.success) {
+        setError(result.error || 'Failed to log in.');
+        return;
+      }
 
-    // Direct routing based on whether onboarding is already complete
-    if (result.user?.onboardingCompleted) {
+      // Direct seamless routing straight to Home!
       navigate('/', { replace: true });
-    } else {
-      navigate('/onboarding', { replace: true });
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setError(err.message || 'Login failed. Please try again.');
     }
   };
 

@@ -51,7 +51,7 @@ export const SidebarRail: React.FC = () => {
     { to: '/progress', label: 'Progress', icon: Sprout },
     { to: '/mentor', label: 'Mentor', icon: MessageSquare },
     { to: '/calendar', label: 'Calendar', icon: CalendarDays },
-    { to: '/upload', label: 'My Roadmaps', icon: BookOpen },
+    { to: '/library', label: 'My Roadmaps', icon: BookOpen },
     { to: '/profile', label: 'Profile', icon: User },
   ];
 

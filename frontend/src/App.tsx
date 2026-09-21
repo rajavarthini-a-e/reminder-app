@@ -16,6 +16,7 @@ import { EscalationAlertBanner } from './components/reminders/EscalationAlertBan
 import { VerificationModal } from './components/verification/VerificationModal.js';
 import { RoutineReminderPopup } from './components/routines/RoutineReminderPopup.js';
 import { routineReminderService } from './services/routineReminderService.js';
+import { syncRoutinesWithBackend } from './services/routinesService.js';
 import { useAppStore } from './store/useAppStore.js';
 import { getCurrentUser, AuthUser } from './services/authService.js';
 
@@ -43,19 +44,7 @@ const AppShell: React.FC = () => {
     );
   }
 
-  // Tier 2: Authenticated but Onboarding incomplete -> Fixed Onboarding sequence only
-  if (!currentUser.onboardingCompleted) {
-    return (
-      <div className="min-h-screen bg-app text-primary-text font-sans">
-        <Routes>
-          <Route path="/onboarding" element={<OnboardingPage />} />
-          <Route path="*" element={<Navigate to="/onboarding" replace />} />
-        </Routes>
-      </div>
-    );
-  }
-
-  // Tier 3: Authenticated and Onboarding completed -> Full Application
+  // Tier 2: Authenticated -> Full Application with seamless entry
   return (
     <div className="min-h-screen bg-app dark:bg-background-dark text-primary-text dark:text-gray-100 flex font-sans transition-colors selection:bg-lavender selection:text-primary">
       {/* Left Desktop Sidebar Rail (>= 768px) */}
@@ -67,13 +56,14 @@ const AppShell: React.FC = () => {
 
         <main className="flex-1 overflow-x-hidden">
           <Routes>
-            <Route path="/" element={<HomeScreen />} />
-            <Route path="/progress" element={<ProgressScreen />} />
+            <Route path="/" element={<ProgressScreen />} />
+            <Route path="/progress" element={<HomeScreen />} />
             <Route path="/mentor" element={<MentorChatPage />} />
             <Route path="/calendar" element={<CalendarScreen />} />
             <Route path="/upload" element={<UploadPage />} />
             <Route path="/library" element={<RoadmapLibraryPage />} />
             <Route path="/profile" element={<ProfileScreen />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
@@ -104,6 +94,7 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     loadDashboard();
+    syncRoutinesWithBackend();
     routineReminderService.start();
 
     let eventSource: EventSource | null = null;

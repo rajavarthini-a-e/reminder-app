@@ -118,22 +118,22 @@ export const CareerPlanView: React.FC<CareerPlanViewProps> = ({
 
   if (!goal) {
     return (
-      <div className="bg-success dark:bg-[#16251C] dark:border dark:border-success/30 text-white dark:text-gray-100 rounded-2xl p-5 shadow-sm space-y-3">
-        <div className="text-[11px] font-black tracking-wider uppercase opacity-85">
-          GET STARTED
+      <div className="bg-surface dark:bg-surface-dark border border-border dark:border-surface-darkBorder rounded-3xl p-6 text-center space-y-3 shadow-xs">
+        <div className="w-12 h-12 mx-auto rounded-2xl bg-success-soft text-success flex items-center justify-center text-2xl">
+          🎓
         </div>
-        <div className="text-lg sm:text-xl font-black leading-snug">
-          No active study plan yet
+        <div className="text-base font-black text-primary-text dark:text-white">
+          No Active Career Roadmap
         </div>
-        <p className="text-xs font-medium opacity-90 leading-relaxed">
-          Upload a curriculum syllabus or paste your study plan to generate an automated timetable with daily topics and weekly progress tracking.
+        <p className="text-xs text-secondary-text dark:text-gray-400 font-medium leading-relaxed max-w-sm mx-auto">
+          You are currently in Personal Habits mode. When you are ready to track study milestones, explore or activate a roadmap anytime.
         </p>
-        <div className="pt-1">
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2.5">
           <button
             onClick={onNavigateUpload}
-            className="w-full sm:w-auto py-2.5 px-5 rounded-xl bg-white dark:bg-success text-success-hover dark:text-white text-xs font-black hover:bg-surface-secondary dark:hover:bg-success-hover transition-all shadow-xs cursor-pointer min-h-[48px] flex items-center justify-center gap-2"
+            className="w-full sm:w-auto py-2.5 px-5 rounded-2xl bg-success text-white hover:bg-success-hover text-xs font-black transition-all shadow-xs cursor-pointer min-h-[44px] flex items-center justify-center gap-2"
           >
-            <span>Upload or Paste Plan</span>
+            <span>Browse Roadmap Library</span>
             <span>→</span>
           </button>
         </div>

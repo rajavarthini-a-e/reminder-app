@@ -6,6 +6,7 @@ import { tasksRouter } from './routes/tasks.js';
 import { plansRouter } from './routes/plans.js';
 import { mentorRouter } from './routes/mentor.js';
 import { remindersRouter } from './routes/reminders.js';
+import { authRouter, routinesRouter } from './routes/auth.js';
 import { schedulerService } from './services/scheduler.service.js';
 
 const app = express();
@@ -56,6 +57,8 @@ app.use('/api/dashboard', dashboardRouter);
 app.use('/api/tasks', tasksRouter);
 app.use('/api/reminders', remindersRouter);
 app.use('/api/mentor', mentorRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/routines', routinesRouter);
 app.use('/api', plansRouter);
 
 // Support top-level convenience endpoints directly matching specification

@@ -12,21 +12,26 @@ export const SignupPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
 
-    const result = signup(name, email, password);
-    setIsSubmitting(false);
+    try {
+      const result = await signup(name, email, password);
+      setIsSubmitting(false);
 
-    if (!result.success) {
-      setError(result.error || 'Failed to create account.');
-      return;
+      if (!result.success) {
+        setError(result.error || 'Failed to create account.');
+        return;
+      }
+
+      // Seamless direct entry straight to Home with personal habits ready!
+      navigate('/', { replace: true });
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setError(err.message || 'Failed to create account.');
     }
-
-    // New user always starts at Step 1 of Onboarding
-    navigate('/onboarding', { replace: true });
   };
 
   return (

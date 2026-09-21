@@ -7,12 +7,30 @@ export const dashboardRouter = Router();
 
 dashboardRouter.get('/', async (req: Request, res: Response) => {
   try {
-    // Fetch or create default user
-    let user = await prisma.user.findFirst({
-      include: {
-        behavior: true,
-      },
-    });
+    // Fetch requested user or fallback to first user
+    const authHeader = req.headers.authorization;
+    let userId = '';
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      userId = authHeader.substring(7).trim();
+    }
+    if (!userId && req.query.userId) {
+      userId = String(req.query.userId).trim();
+    }
+
+    let user = userId
+      ? await prisma.user.findUnique({
+          where: { id: userId },
+          include: { behavior: true },
+        })
+      : null;
+
+    if (!user) {
+      user = await prisma.user.findFirst({
+        include: {
+          behavior: true,
+        },
+      });
+    }
 
     if (!user) {
       user = await prisma.user.create({
