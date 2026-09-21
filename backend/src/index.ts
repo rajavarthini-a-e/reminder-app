@@ -11,13 +11,39 @@ import { schedulerService } from './services/scheduler.service.js';
 const app = express();
 
 // Middleware
-app.use(cors({ origin: true, credentials: true }));
+const FRONTEND_URL = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.replace(/\/+$/, '') : '';
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (curl, server-to-server, mobile app)
+      if (!origin) return callback(null, true);
+      // Allow configured frontend origin
+      if (FRONTEND_URL && (origin === FRONTEND_URL || origin.startsWith(FRONTEND_URL))) {
+        return callback(null, true);
+      }
+      // Allow local dev, Render preview, and Vercel deployments
+      if (
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1') ||
+        origin.endsWith('.onrender.com') ||
+        origin.endsWith('.vercel.app')
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
-// Health check
-app.get('/api/health', (req: Request, res: Response) => {
-  res.json({
+// Health check (responds on both /health and /api/health for Render/monitoring)
+app.get(['/health', '/api/health'], (req: Request, res: Response) => {
+  res.status(200).json({
     status: 'ok',
     service: 'MentorAI Backend',
     timestamp: new Date().toISOString(),
@@ -56,8 +82,10 @@ app.use((err: any, req: Request, res: Response, next: any) => {
 });
 
 // Start server
-const server = app.listen(config.port, () => {
-  console.log(`🚀 [MentorAI Backend] Running on http://localhost:${config.port}`);
+const PORT = config.port;
+const HOST = '0.0.0.0';
+const server = app.listen(PORT, HOST, () => {
+  console.log(`🚀 [MentorAI Backend] Running on http://${HOST}:${PORT}`);
   console.log(`📡 [Scheduler] Starting 1-minute persistent cron engine...`);
   schedulerService.start();
 });

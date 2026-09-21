@@ -5,7 +5,11 @@ import {
   Task,
 } from '@shared/types';
 
-const API_BASE = '/api';
+// In production, VITE_API_URL points to the live Render backend URL (e.g. https://reminder-app-backend.onrender.com)
+// In local development, leaving it empty routes via Vite's dev proxy
+const RAW_API_URL = (import.meta.env.VITE_API_URL || '').trim();
+const API_URL = RAW_API_URL.replace(/\/+$/, '');
+export const API_BASE = API_URL ? `${API_URL}/api` : '/api';
 
 export async function fetchDashboard(): Promise<DashboardData> {
   const res = await fetch(`${API_BASE}/dashboard`);
@@ -178,5 +182,13 @@ export async function deleteTask(taskId: string): Promise<{ success: boolean; me
 export async function deleteActivePlan(): Promise<{ success: boolean; message: string }> {
   const res = await fetch(`${API_BASE}/goals/active`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete active plan');
+  return res.json();
+}
+
+export const deleteActiveGoal = deleteActivePlan;
+
+export async function resetActiveGoal(): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${API_BASE}/goals/reset`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to reset active goal');
   return res.json();
 }

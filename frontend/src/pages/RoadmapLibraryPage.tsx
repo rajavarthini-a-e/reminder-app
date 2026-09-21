@@ -13,7 +13,7 @@ import {
   resetRoadmap,
   getOrSynthesizePlanData,
 } from '../services/roadmapLibrary.js';
-import { saveGoalPlan } from '../services/api.js';
+import { saveGoalPlan, resetActiveGoal, deleteActiveGoal } from '../services/api.js';
 import { useAppStore } from '../store/useAppStore.js';
 import clsx from 'clsx';
 
@@ -76,7 +76,7 @@ export const RoadmapLibraryPage: React.FC = () => {
 
         // If target is currently active in database, call backend reset
         if (target && target.status === 'active') {
-          await fetch('/api/goals/reset', { method: 'POST' });
+          await resetActiveGoal();
           await loadDashboard();
         }
       } catch (err) {
@@ -103,7 +103,7 @@ export const RoadmapLibraryPage: React.FC = () => {
       // If active goal was deleted, clear active goal in backend too
       if (dashboardData?.goal?.id === id) {
         try {
-          await fetch('/api/goals/active', { method: 'DELETE' });
+          await deleteActiveGoal();
           await loadDashboard();
         } catch (err) {
           console.error('Failed to clear active goal:', err);
@@ -117,7 +117,7 @@ export const RoadmapLibraryPage: React.FC = () => {
       clearAllRoadmaps();
       setRoadmaps([]);
       try {
-        await fetch('/api/goals/active', { method: 'DELETE' });
+        await deleteActiveGoal();
         await loadDashboard();
       } catch (err) {
         console.error('Failed to clear active goal in backend:', err);

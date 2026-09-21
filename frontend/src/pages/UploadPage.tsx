@@ -16,7 +16,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { ExtractedPlan } from '@shared/types';
-import { uploadPlanFile, uploadPlanText, saveGoalPlan } from '../services/api.js';
+import { uploadPlanFile, uploadPlanText, saveGoalPlan, resetActiveGoal, deleteActiveGoal } from '../services/api.js';
 import { useAppStore } from '../store/useAppStore.js';
 import { Card, Button, Badge, Heading, Text } from '../components/ui/index.js';
 import { Mascot } from '../components/ui/Mascot.js';
@@ -176,7 +176,7 @@ export const UploadPage: React.FC = () => {
 
         // If target is currently active in database, call backend reset
         if (target && target.status === 'active') {
-          await fetch('/api/goals/reset', { method: 'POST' });
+          await resetActiveGoal();
           await loadDashboard();
         }
       } catch (err) {
@@ -194,7 +194,7 @@ export const UploadPage: React.FC = () => {
 
         // If active in database, clear active goal
         if (target && (target.status === 'active' || dashboardData?.goal?.title === title)) {
-          await fetch('/api/goals/active', { method: 'DELETE' });
+          await deleteActiveGoal();
           await loadDashboard();
         }
       } catch (err) {
