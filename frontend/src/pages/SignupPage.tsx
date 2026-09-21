@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signup } from '../services/authService.js';
-import { User, Mail, Lock, ArrowRight } from 'lucide-react';
+import { User, Mail, Lock, ArrowRight, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import clsx from 'clsx';
 
 export const SignupPage: React.FC = () => {
@@ -9,12 +9,19 @@ export const SignupPage: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (password.length < 4) {
+      setError('Password must be at least 4 characters.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -34,6 +41,8 @@ export const SignupPage: React.FC = () => {
     }
   };
 
+  const isAlreadyExists = error && error.toLowerCase().includes('already exists');
+
   return (
     <div className="min-h-screen bg-app flex items-center justify-center p-4">
       <div className="w-full max-w-md mx-auto space-y-6 animate-fadeIn">
@@ -49,13 +58,27 @@ export const SignupPage: React.FC = () => {
               Create your account
             </h1>
             <p className="text-xs sm:text-sm text-secondary-text font-medium leading-relaxed max-w-[280px] mx-auto break-words">
-              Meet Momo, setup your study goals and start your personal habit streaks.
+              Meet Momo, setup your personal habits, and track your daily consistency.
             </p>
           </div>
 
           {error && (
-            <div className="bg-danger-soft border border-danger/30 text-danger-text rounded-2xl p-3.5 text-xs font-bold leading-snug break-words text-left">
-              ⚠️ {error}
+            <div className="bg-danger-soft border border-danger/30 text-danger-text rounded-2xl p-4 text-xs font-bold leading-snug break-words text-left space-y-2.5">
+              <div className="flex items-start gap-2">
+                <span className="text-base flex-shrink-0">⚠️</span>
+                <span>{error}</span>
+              </div>
+              {isAlreadyExists && (
+                <div className="pt-1 border-t border-danger/20">
+                  <Link
+                    to="/login"
+                    className="inline-flex items-center gap-1.5 text-success font-black hover:underline text-xs"
+                  >
+                    <span>Click here to Log in to your existing account</span>
+                    <span>→</span>
+                  </Link>
+                </div>
+              )}
             </div>
           )}
 
@@ -74,7 +97,7 @@ export const SignupPage: React.FC = () => {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Alex Rivera"
+                  placeholder="e.g. Rajavarthini"
                   className="w-full min-h-[48px] bg-surface-secondary text-primary-text rounded-2xl pl-10 pr-4 text-xs font-medium border border-border focus:border-success focus:outline-none transition-colors"
                 />
               </div>
@@ -95,7 +118,12 @@ export const SignupPage: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
-                  className="w-full min-h-[48px] bg-surface-secondary text-primary-text rounded-2xl pl-10 pr-4 text-xs font-medium border border-border focus:border-success focus:outline-none transition-colors"
+                  className={clsx(
+                    'w-full min-h-[48px] bg-surface-secondary text-primary-text rounded-2xl pl-10 pr-4 text-xs font-medium border focus:outline-none transition-colors',
+                    isAlreadyExists
+                      ? 'border-danger focus:border-danger ring-1 ring-danger/40'
+                      : 'border-border focus:border-success'
+                  )}
                 />
               </div>
             </div>
@@ -110,13 +138,21 @@ export const SignupPage: React.FC = () => {
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 6 characters"
-                  className="w-full min-h-[48px] bg-surface-secondary text-primary-text rounded-2xl pl-10 pr-4 text-xs font-medium border border-border focus:border-success focus:outline-none transition-colors"
+                  placeholder="At least 4 characters"
+                  className="w-full min-h-[48px] bg-surface-secondary text-primary-text rounded-2xl pl-10 pr-11 text-xs font-medium border border-border focus:border-success focus:outline-none transition-colors"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 text-secondary-text hover:text-primary-text cursor-pointer p-1"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 

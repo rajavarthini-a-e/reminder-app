@@ -6,9 +6,13 @@ import {
   LogOut,
   User,
   Trash2,
+  KeyRound,
+  Eye,
+  EyeOff,
+  CheckCircle2,
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore.js';
-import { getCurrentUser, updateCurrentUser, logout } from '../services/authService.js';
+import { getCurrentUser, updateCurrentUser, logout, resetPassword } from '../services/authService.js';
 import { deleteActivePlan } from '../services/api.js';
 import { resetRoutinesToDefault, clearAllRoutines } from '../services/routinesService.js';
 import clsx from 'clsx';
@@ -26,6 +30,13 @@ export const ProfileScreen: React.FC = () => {
   const [reminderTime, setReminderTime] = useState('7:00 AM');
   const [exportNotice, setExportNotice] = useState(false);
   const [planNotice, setPlanNotice] = useState<string | null>(null);
+
+  // Change password state
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [pwStatus, setPwStatus] = useState<string | null>(null);
+  const [pwError, setPwError] = useState<string | null>(null);
 
   const userName = currentUser?.name || dashboardData?.user?.name || 'Alex Rivera';
   const userEmail = currentUser?.email || 'alex@mentorai.com';
@@ -185,17 +196,91 @@ export const ProfileScreen: React.FC = () => {
         </div>
       )}
 
-      {/* 7. Restart Onboarding */}
-      <button
-        onClick={() => {
-          updateCurrentUser({ onboardingCompleted: false, onboardingStep: 1 });
-          navigate('/onboarding');
-        }}
-        className="w-full bg-surface-secondary dark:bg-surface-darkBorder text-secondary-text hover:text-primary-text rounded-2xl p-3.5 text-center text-xs font-bold transition-all cursor-pointer min-h-[48px] flex items-center justify-center gap-2"
-      >
-        <RotateCcw className="w-3.5 h-3.5" />
-        <span>Restart Onboarding Walkthrough</span>
-      </button>
+      {/* Security: Change Password Card */}
+      <div className="bg-white dark:bg-surface-dark border border-border dark:border-surface-darkBorder rounded-2xl p-4 shadow-2xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-bold text-primary-text dark:text-white">Account Security</div>
+            <div className="text-[10px] text-secondary-text dark:text-gray-400">
+              Update password for {userEmail}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsChangingPassword(!isChangingPassword);
+              setPwError(null);
+              setPwStatus(null);
+            }}
+            className="text-xs font-black text-success hover:underline cursor-pointer"
+          >
+            {isChangingPassword ? 'Close' : 'Change Password'}
+          </button>
+        </div>
+
+        {isChangingPassword && (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setPwError(null);
+              setPwStatus(null);
+
+              if (newPassword.length < 4) {
+                setPwError('Password must be at least 4 characters.');
+                return;
+              }
+
+              const res = await resetPassword(userEmail, newPassword);
+              if (res.success) {
+                setPwStatus('Password changed successfully!');
+                setNewPassword('');
+                setTimeout(() => {
+                  setIsChangingPassword(false);
+                  setPwStatus(null);
+                }, 2000);
+              } else {
+                setPwError(res.error || 'Failed to update password.');
+              }
+            }}
+            className="space-y-2.5 pt-2 border-t border-border/60"
+          >
+            {pwError && (
+              <div className="bg-danger-soft text-danger p-2.5 rounded-xl text-xs font-bold">
+                ⚠️ {pwError}
+              </div>
+            )}
+            {pwStatus && (
+              <div className="bg-success-soft text-success p-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{pwStatus}</span>
+              </div>
+            )}
+            <div className="relative flex items-center">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password (min 4 chars)"
+                className="w-full min-h-[44px] bg-surface-secondary text-primary-text rounded-xl pl-3.5 pr-10 text-xs font-medium border border-border focus:border-success focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 text-secondary-text hover:text-primary-text cursor-pointer p-1"
+              >
+                {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+            <button
+              type="submit"
+              className="w-full min-h-[44px] py-2.5 rounded-xl bg-success text-white hover:bg-success-hover text-xs font-black transition-all cursor-pointer shadow-xs"
+            >
+              Save New Password
+            </button>
+          </form>
+        )}
+      </div>
 
       {/* 6. Sign Out Button (>= 48px) */}
       <button

@@ -217,6 +217,54 @@ export async function login(
   }
 }
 
+export async function resetPassword(
+  email: string,
+  newPassword: string
+): Promise<{ success: boolean; error?: string; message?: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanPassword = newPassword.trim();
+
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    return { success: false, error: 'Please enter a valid email address.' };
+  }
+  if (!cleanPassword || cleanPassword.length < 4) {
+    return { success: false, error: 'Password must be at least 4 characters.' };
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, newPassword: cleanPassword }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      return { success: false, error: data.error || 'Failed to reset password.' };
+    }
+
+    // Update local cache if user exists
+    const users = getStoredUsers();
+    const idx = users.findIndex((u) => u.email.toLowerCase() === cleanEmail);
+    if (idx >= 0) {
+      users[idx].password = cleanPassword;
+      saveStoredUsers(users);
+    }
+
+    return { success: true, message: data.message || 'Password reset successfully!' };
+  } catch (err: any) {
+    console.warn('Backend reset-password fallback:', err);
+    const users = getStoredUsers();
+    const idx = users.findIndex((u) => u.email.toLowerCase() === cleanEmail);
+    if (idx >= 0) {
+      users[idx].password = cleanPassword;
+      saveStoredUsers(users);
+      return { success: true, message: 'Password reset successfully!' };
+    }
+    return { success: false, error: 'No account found with this email. Please sign up.' };
+  }
+}
+
 export function updateCurrentUser(updates: Partial<AuthUser>): AuthUser | null {
   const current = getCurrentUser();
   if (!current) return null;
