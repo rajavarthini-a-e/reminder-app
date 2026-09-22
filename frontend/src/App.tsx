@@ -60,7 +60,7 @@ const AppShell: React.FC = () => {
             <Route path="/progress" element={<HomeScreen />} />
             <Route path="/mentor" element={<MentorChatPage />} />
             <Route path="/calendar" element={<CalendarScreen />} />
-            <Route path="/upload" element={<UploadPage />} />
+            <Route path="/upload" element={<RoadmapLibraryPage defaultTab="upload" />} />
             <Route path="/library" element={<RoadmapLibraryPage />} />
             <Route path="/profile" element={<ProfileScreen />} />
             <Route path="/onboarding" element={<OnboardingPage />} />

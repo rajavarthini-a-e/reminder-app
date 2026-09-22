@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Plus,
   BookOpen,
@@ -10,6 +10,13 @@ import {
   RotateCcw,
   Check,
   Map,
+  Sparkles,
+  Calendar,
+  ArrowRight,
+  Brain,
+  ShieldCheck,
+  BellRing,
+  FileText,
 } from 'lucide-react';
 import { StoredRoadmap } from '../components/domain/RoadmapCard.js';
 import {
@@ -23,20 +30,53 @@ import {
   resetRoadmap,
   getOrSynthesizePlanData,
 } from '../services/roadmapLibrary.js';
-import { saveGoalPlan, resetActiveGoal, deleteActiveGoal, deleteTask } from '../services/api.js';
+import {
+  uploadPlanFile,
+  uploadPlanText,
+  saveGoalPlan,
+  resetActiveGoal,
+  deleteActiveGoal,
+  deleteTask,
+} from '../services/api.js';
 import { useAppStore } from '../store/useAppStore.js';
 import { MilestoneTestModal } from '../components/milestones/MilestoneTestModal.js';
-import { Milestone, Task } from '@shared/types';
+import { UploadCard, UploadState } from '../components/domain/UploadCard.js';
+import { Card, Heading, Text } from '../components/ui/index.js';
+import { Mascot } from '../components/ui/Mascot.js';
+import { ExtractedPlan, Milestone, Task } from '@shared/types';
 import clsx from 'clsx';
 
-export const RoadmapLibraryPage: React.FC = () => {
+export interface RoadmapLibraryPageProps {
+  defaultTab?: 'upload' | 'full' | 'shelf';
+}
+
+export const RoadmapLibraryPage: React.FC<RoadmapLibraryPageProps> = ({ defaultTab }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const tabParam = searchParams.get('tab') as 'upload' | 'full' | 'shelf' | null;
+
   const { dashboardData, loadDashboard, toggleTask, openVerification } = useAppStore();
   const [roadmaps, setRoadmaps] = useState<StoredRoadmap[]>([]);
 
-  // View tabs: 'full' (full active roadmap timeline) or 'shelf' (all saved roadmaps)
-  const [activeTab, setActiveTab] = useState<'full' | 'shelf'>('full');
+  // 3-Way Tabs: 'upload' | 'full' | 'shelf'
+  const [activeTab, setActiveTab] = useState<'upload' | 'full' | 'shelf'>(() => {
+    if (defaultTab) return defaultTab;
+    if (tabParam && ['upload', 'full', 'shelf'].includes(tabParam)) return tabParam;
+    if (location.pathname === '/upload') return 'upload';
+    return 'full';
+  });
+
   const [selectedRoadmapId, setSelectedRoadmapId] = useState<string | null>(null);
+
+  // Upload Roadmap States
+  const [uploadState, setUploadState] = useState<UploadState>('idle');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [extractedPlan, setExtractedPlan] = useState<ExtractedPlan | null>(null);
+  const [dailyCommitment, setDailyCommitment] = useState<'30 min' | '1 hour' | '2+ hours'>('1 hour');
+  const [uploadedFileName, setUploadedFileName] = useState<string>('study_plan.pdf');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isAutoScheduled, setIsAutoScheduled] = useState(false);
 
   // Milestone Test Modal
   const [activeTestMilestone, setActiveTestMilestone] = useState<{
@@ -133,6 +173,83 @@ export const RoadmapLibraryPage: React.FC = () => {
 
   const isViewingLiveActiveGoal =
     dashboardData?.goal && (!selectedRoadmapId || selectedRoadmapId === dashboardData.goal.id);
+
+  // --------------------------------------------------------------------------
+  // Roadmap Upload Handlers
+  // --------------------------------------------------------------------------
+  const handleFileSelect = async (file: File) => {
+    setErrorMsg(null);
+    setUploadState('uploading');
+    setUploadedFileName(file.name);
+
+    try {
+      setUploadState('parsing');
+      const plan = await uploadPlanFile(file);
+      setExtractedPlan(plan);
+      setUploadState('idle');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to parse file. Please upload a PDF, DOCX, Markdown, or plain text plan.');
+      setUploadState('error');
+    }
+  };
+
+  const handleTextSubmit = async (text: string) => {
+    if (!text.trim()) return;
+    setErrorMsg(null);
+    setUploadState('parsing');
+    setUploadedFileName('Pasted Plan');
+
+    try {
+      setUploadState('parsing');
+      const plan = await uploadPlanText(text);
+      setExtractedPlan(plan);
+      setUploadState('idle');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to parse plan text. Please check the structure and try again.');
+      setUploadState('error');
+    }
+  };
+
+  const handleConfirmAndStart = async () => {
+    if (!extractedPlan) return;
+    setIsSaving(true);
+    setErrorMsg(null);
+
+    try {
+      const response = await saveGoalPlan(extractedPlan);
+
+      const totalCount = extractedPlan.milestones.reduce((acc, m) => acc + m.tasks.length, 0);
+      const newRoadmap: StoredRoadmap = {
+        id: response.goalId || `roadmap-${Date.now()}`,
+        title: extractedPlan.goal,
+        description: extractedPlan.rawSummary || undefined,
+        status: 'active',
+        progress: 0,
+        totalTasks: totalCount,
+        completedTasks: 0,
+        startDate: new Date().toISOString(),
+        deadline: new Date(Date.now() + (extractedPlan.duration || 60) * 86400000).toISOString(),
+        subjectTag: 'Self-Paced',
+        planData: extractedPlan,
+      };
+
+      addOrUpdateRoadmap(newRoadmap);
+      setRoadmaps(getStoredRoadmaps());
+      setSelectedRoadmapId(newRoadmap.id);
+
+      await loadDashboard();
+      setIsSaving(false);
+      setIsAutoScheduled(true);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to activate plan.');
+      setIsSaving(false);
+    }
+  };
+
+  const totalTasksCount = extractedPlan
+    ? extractedPlan.milestones.reduce((acc, m) => acc + m.tasks.length, 0)
+    : 18;
+  const milestonesCount = extractedPlan ? extractedPlan.milestones.length : 3;
 
   const handleSelectActive = async (id: string) => {
     try {
@@ -267,11 +384,11 @@ export const RoadmapLibraryPage: React.FC = () => {
       <div className="flex items-center justify-between gap-3 pt-1">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-primary-text dark:text-white flex items-center gap-2">
-            <span>Study Roadmaps</span>
+            <span>My Roadmaps</span>
             <span className="text-success">🗺️</span>
           </h1>
           <p className="text-xs text-secondary-text dark:text-gray-400 font-medium">
-            Full curriculum timeline, phases & daily progress
+            Upload curriculum, view full timelines, phases & daily progress
           </p>
         </div>
 
@@ -288,17 +405,43 @@ export const RoadmapLibraryPage: React.FC = () => {
           )}
 
           <button
-            onClick={() => navigate('/upload')}
-            className="py-2.5 px-3.5 rounded-xl bg-success text-white hover:bg-success-hover font-black text-xs transition-all shadow-xs flex items-center gap-1.5 cursor-pointer min-h-[44px]"
+            onClick={() => {
+              setActiveTab('upload');
+              setIsAutoScheduled(false);
+              setExtractedPlan(null);
+            }}
+            className={clsx(
+              'py-2.5 px-3.5 rounded-xl font-black text-xs transition-all shadow-xs flex items-center gap-1.5 cursor-pointer min-h-[44px]',
+              activeTab === 'upload'
+                ? 'bg-surface-secondary dark:bg-surface-darkBorder text-primary-text border border-border'
+                : 'bg-success text-white hover:bg-success-hover'
+            )}
           >
             <Plus className="w-4 h-4" />
-            <span className="whitespace-nowrap">New roadmap</span>
+            <span className="whitespace-nowrap">Upload Roadmap</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Top View Switcher: [Full Roadmap] vs [All Roadmaps Shelf] */}
+      {/* 2. Top View Switcher: [Upload Roadmap] vs [Full Roadmap] vs [My Roadmaps (N)] */}
       <div className="flex bg-surface-secondary dark:bg-surface-darkBorder rounded-2xl p-1 select-none border border-border/60">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('upload');
+            setIsAutoScheduled(false);
+          }}
+          className={clsx(
+            'flex-1 py-2.5 px-3 rounded-xl text-xs font-black transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer min-h-[40px]',
+            activeTab === 'upload'
+              ? 'bg-success text-white shadow-xs'
+              : 'text-secondary-text hover:text-primary-text'
+          )}
+        >
+          <span>📤</span>
+          <span>Upload Roadmap</span>
+        </button>
+
         <button
           type="button"
           onClick={() => setActiveTab('full')}
@@ -324,12 +467,262 @@ export const RoadmapLibraryPage: React.FC = () => {
           )}
         >
           <span>📚</span>
-          <span>All Roadmaps ({roadmaps.length})</span>
+          <span>My Roadmaps ({roadmaps.length})</span>
         </button>
       </div>
 
       {/* ========================================================================= */}
-      {/* TAB 1: FULL ROADMAP VIEW (All Phases, Milestones & Topics Checklist)     */}
+      {/* TAB 1: UPLOAD ROADMAP (Dropzone / Text Paste, AI Breakdown & Auto-Calendar)*/}
+      {/* ========================================================================= */}
+      {activeTab === 'upload' && (
+        <div className="space-y-4 animate-fadeIn">
+          {/* A. Auto-Scheduled Confirmation Screen */}
+          {isAutoScheduled ? (
+            <div className="max-w-md mx-auto space-y-4 pt-1 animate-fadeIn">
+              <div className="text-center space-y-1">
+                <h2 className="text-lg font-black text-primary-text dark:text-white">
+                  Roadmap & Schedule Created! 🚀
+                </h2>
+                <p className="text-xs text-secondary-text dark:text-gray-400 font-medium">
+                  Calendar built automatically from your curriculum
+                </p>
+              </div>
+
+              {/* File reading badge */}
+              <div className="p-4 rounded-2xl bg-white dark:bg-surface-dark border border-border dark:border-surface-darkBorder text-center space-y-2 shadow-2xs">
+                <div className="w-10 h-10 rounded-xl bg-surface-secondary dark:bg-surface-darkBorder flex items-center justify-center mx-auto text-xl">
+                  ⚙️
+                </div>
+                <div className="text-xs font-bold text-secondary-text dark:text-gray-300">
+                  Processed {uploadedFileName}
+                </div>
+              </div>
+
+              {/* Detection Checklist Rows */}
+              <div className="space-y-2.5">
+                <div className="p-3.5 rounded-2xl bg-white dark:bg-surface-dark border border-border dark:border-surface-darkBorder shadow-2xs flex items-center gap-3">
+                  <span className="w-6 h-6 rounded-full bg-success-soft text-success font-black flex items-center justify-center text-xs">
+                    ✓
+                  </span>
+                  <span className="text-xs sm:text-sm font-bold text-primary-text dark:text-white">
+                    {milestonesCount} curriculum phases detected
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-white dark:bg-surface-dark border border-border dark:border-surface-darkBorder shadow-2xs flex items-center gap-3">
+                  <span className="w-6 h-6 rounded-full bg-success-soft text-success font-black flex items-center justify-center text-xs">
+                    ✓
+                  </span>
+                  <span className="text-xs sm:text-sm font-bold text-primary-text dark:text-white">
+                    {totalTasksCount} study topics scheduled
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-white dark:bg-surface-dark border border-border dark:border-surface-darkBorder shadow-2xs flex items-center gap-3">
+                  <span className="w-6 h-6 rounded-full bg-success-soft text-success font-black flex items-center justify-center text-xs">
+                    ✓
+                  </span>
+                  <span className="text-xs sm:text-sm font-bold text-primary-text dark:text-white">
+                    {milestonesCount} milestones dated & prioritized
+                  </span>
+                </div>
+              </div>
+
+              {/* Auto-filled Calendar Callout */}
+              <div className="p-3.5 rounded-2xl bg-success-soft border border-success/25 text-success shadow-2xs space-y-1">
+                <div className="text-xs sm:text-sm font-bold flex items-start gap-2">
+                  <span className="text-base">📅</span>
+                  <span>Your study plan is active — topics appear daily in your calendar and home screen.</span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="space-y-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAutoScheduled(false);
+                    setActiveTab('full');
+                  }}
+                  className="w-full min-h-[48px] py-3.5 rounded-2xl bg-success text-white hover:bg-success-hover font-black text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Map className="w-4 h-4" />
+                  <span>View Full Roadmap Timeline</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/calendar')}
+                  className="w-full min-h-[48px] py-3 rounded-2xl bg-white dark:bg-surface-dark hover:bg-surface-secondary border border-border dark:border-surface-darkBorder text-primary-text dark:text-white font-bold text-xs sm:text-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Calendar className="w-4 h-4 text-success" />
+                  <span>Open Calendar Schedule</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/')}
+                  className="w-full min-h-[44px] py-2.5 rounded-2xl bg-surface-secondary dark:bg-surface-darkBorder text-secondary-text hover:text-primary-text font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <span>Go to Today's Tasks</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ) : extractedPlan ? (
+            /* B. Extracted Plan Preview & Commitment Selection */
+            <div className="space-y-4 pt-1 max-w-xl mx-auto">
+              {/* Parsed File Header */}
+              <div className="p-4 rounded-2xl bg-white dark:bg-surface-dark border border-border dark:border-surface-darkBorder shadow-2xs flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-success-soft text-success flex items-center justify-center flex-shrink-0">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs sm:text-sm font-bold text-primary-text dark:text-white block break-words leading-snug">
+                      {uploadedFileName}
+                    </span>
+                    <span className="text-[11px] text-secondary-text dark:text-gray-400">
+                      {extractedPlan.milestones.length} curriculum phases identified
+                    </span>
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-success-soft text-success border border-success/20 flex-shrink-0">
+                  Parsed ✓
+                </span>
+              </div>
+
+              {/* Phase List Preview */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between px-1">
+                  <h3 className="text-xs font-black text-primary-text dark:text-white uppercase tracking-wider">
+                    Curriculum Breakdown
+                  </h3>
+                  <button
+                    onClick={() => setExtractedPlan(null)}
+                    className="text-[11px] text-secondary-text hover:text-danger font-bold cursor-pointer"
+                  >
+                    Upload different file
+                  </button>
+                </div>
+
+                {extractedPlan.milestones.map((milestone, mIdx) => (
+                  <div
+                    key={mIdx}
+                    className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-surface-dark border border-border dark:border-surface-darkBorder shadow-2xs space-y-1"
+                  >
+                    <div className="text-[10px] font-black text-success uppercase tracking-wider">
+                      Phase {mIdx + 1} · {milestone.tasks.length} topics
+                    </div>
+                    <div className="text-xs sm:text-sm font-black text-primary-text dark:text-white">
+                      {milestone.title}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Mentor Mascot Time Commitment Prompt */}
+              <div className="p-4 rounded-2xl bg-peach-soft/60 dark:bg-peach-soft/10 border border-peach/25 flex items-start gap-3">
+                <div className="w-11 h-11 rounded-xl bg-white dark:bg-surface-dark border border-peach/20 flex items-center justify-center p-1 flex-shrink-0 shadow-2xs">
+                  <Mascot pose="encouraging" className="w-full h-full" />
+                </div>
+                <div className="flex-1 space-y-2.5">
+                  <p className="text-xs sm:text-sm font-bold text-primary-text dark:text-white leading-snug">
+                    How much time can you realistically dedicate each day?
+                  </p>
+
+                  <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                    {(['30 min', '1 hour', '2+ hours'] as const).map((chip) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => setDailyCommitment(chip)}
+                        className={clsx(
+                          'px-3.5 py-1.5 rounded-full text-xs font-bold transition-all min-h-[36px] cursor-pointer shadow-2xs',
+                          dailyCommitment === chip
+                            ? 'bg-success text-white shadow-xs'
+                            : 'bg-white dark:bg-surface-dark text-secondary-text hover:text-primary-text border border-border dark:border-surface-darkBorder'
+                        )}
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Activate Button */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={handleConfirmAndStart}
+                  disabled={isSaving}
+                  className="w-full min-h-[48px] py-3.5 px-6 rounded-2xl bg-success text-white hover:bg-success-hover active:scale-98 font-black text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4 text-peach" />
+                  <span>{isSaving ? 'Building your schedule...' : 'Build My Daily Plan'}</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* C. Empty Upload Dropzone & Text Paste */
+            <div className="space-y-4 pt-1">
+              <UploadCard
+                onFileSelect={handleFileSelect}
+                onTextSubmit={handleTextSubmit}
+                state={uploadState}
+                errorMessage={errorMsg}
+                onResetError={() => {
+                  setErrorMsg(null);
+                  setUploadState('idle');
+                }}
+              />
+
+              {/* Reassurance Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                <Card variant="subtle" className="p-3.5 space-y-1.5">
+                  <div className="w-7 h-7 rounded-lg bg-lavender text-primary flex items-center justify-center">
+                    <Brain className="w-3.5 h-3.5" />
+                  </div>
+                  <Heading as="h4" variant="heading" className="text-xs font-bold text-primary-text dark:text-white">
+                    AI Extraction
+                  </Heading>
+                  <Text tone="secondary" variant="body" className="text-[11px] leading-relaxed">
+                    Turns any PDF syllabus or ChatGPT plan into organized daily milestones.
+                  </Text>
+                </Card>
+
+                <Card variant="subtle" className="p-3.5 space-y-1.5">
+                  <div className="w-7 h-7 rounded-lg bg-success-soft text-success flex items-center justify-center">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                  </div>
+                  <Heading as="h4" variant="heading" className="text-xs font-bold text-primary-text dark:text-white">
+                    Verification Tests
+                  </Heading>
+                  <Text tone="secondary" variant="body" className="text-[11px] leading-relaxed">
+                    Momo tests your comprehension so you retain what you learn.
+                  </Text>
+                </Card>
+
+                <Card variant="subtle" className="p-3.5 space-y-1.5">
+                  <div className="w-7 h-7 rounded-lg bg-peach-soft text-peach-text flex items-center justify-center">
+                    <BellRing className="w-3.5 h-3.5" />
+                  </div>
+                  <Heading as="h4" variant="heading" className="text-xs font-bold text-primary-text dark:text-white">
+                    Daily Schedule
+                  </Heading>
+                  <Text tone="secondary" variant="body" className="text-[11px] leading-relaxed">
+                    Auto-schedules topics straight to your calendar and daily home feed.
+                  </Text>
+                </Card>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 2: FULL ROADMAP VIEW (All Phases, Milestones & Topics Checklist)     */}
       {/* ========================================================================= */}
       {activeTab === 'full' && (
         <div className="space-y-4 animate-fadeIn">
@@ -598,7 +991,11 @@ export const RoadmapLibraryPage: React.FC = () => {
               </div>
               <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
                 <button
-                  onClick={() => navigate('/upload')}
+                  onClick={() => {
+                    setActiveTab('upload');
+                    setIsAutoScheduled(false);
+                    setExtractedPlan(null);
+                  }}
                   className="w-full sm:w-auto py-3 px-5 rounded-xl bg-success text-white hover:bg-success-hover font-black text-xs transition-all shadow-xs cursor-pointer inline-flex items-center justify-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
@@ -611,7 +1008,7 @@ export const RoadmapLibraryPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: BOOKSHELF VIEW (Saved Roadmaps Cards & Switcher)                  */}
+      {/* TAB 3: BOOKSHELF VIEW (Saved Roadmaps Cards & Switcher)                  */}
       {/* ========================================================================= */}
       {activeTab === 'shelf' && (
         <div className="space-y-3.5 animate-fadeIn">
@@ -630,7 +1027,11 @@ export const RoadmapLibraryPage: React.FC = () => {
               </div>
               <div className="pt-2">
                 <button
-                  onClick={() => navigate('/upload')}
+                  onClick={() => {
+                    setActiveTab('upload');
+                    setIsAutoScheduled(false);
+                    setExtractedPlan(null);
+                  }}
                   className="py-3 px-5 rounded-xl bg-success text-white hover:bg-success-hover font-black text-xs transition-all shadow-xs cursor-pointer inline-flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
@@ -769,7 +1170,11 @@ export const RoadmapLibraryPage: React.FC = () => {
           {roadmaps.length > 0 && (
             <div className="pt-2">
               <button
-                onClick={() => navigate('/upload')}
+                onClick={() => {
+                  setActiveTab('upload');
+                  setIsAutoScheduled(false);
+                  setExtractedPlan(null);
+                }}
                 className="w-full min-h-[48px] py-3 rounded-2xl bg-success text-white hover:bg-success-hover font-black text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
